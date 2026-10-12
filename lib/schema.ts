@@ -30,6 +30,28 @@ export async function ensureAppSchema(db: Db) {
       created_at timestamptz NOT NULL DEFAULT now()
     )
   `;
+  await db`
+    CREATE TABLE IF NOT EXISTS tickets (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+      visitor_key text NOT NULL,
+      visitor_name text NOT NULL DEFAULT '',
+      visitor_email text NOT NULL DEFAULT '',
+      subject text NOT NULL,
+      status text NOT NULL DEFAULT 'open',
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+  await db`
+    CREATE TABLE IF NOT EXISTS ticket_messages (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      ticket_id uuid NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      author text NOT NULL,
+      body text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
 
   const count = await db`SELECT count(*)::int AS count FROM challenge_prices`;
   if (Number(count[0]?.count || 0) === 0) {

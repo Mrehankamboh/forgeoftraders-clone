@@ -43,7 +43,10 @@ export function serveHtmlPage(slug: string): NextResponse {
   }
 
   const html = fs.readFileSync(fullPath, "utf8");
-  return new NextResponse(html, {
+  const withChat = html.includes("/support-chat.js")
+    ? html
+    : html.replace("</body>", '<script src="/support-chat.js" defer></script></body>');
+  return new NextResponse(withChat, {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",

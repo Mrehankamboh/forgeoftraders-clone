@@ -28,7 +28,7 @@ export default async function TicketsPage() {
   return (
     <>
       <h1>Tickets</h1>
-      <p className="lead">Replies sent here show up in the visitor’s support chat.</p>
+      <p className="lead">Replies sent here show up in the visitor support chat.</p>
       <TicketDesk initial={tickets} />
     </>
   );

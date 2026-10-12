@@ -1,10 +1,16 @@
 import { loadAdmin } from "@/lib/admin";
 import { countOf, money, when } from "./format";
+import { UserDirectory } from "./user-directory";
 
 export const metadata = { title: "Overview - Forge Admin" };
 
-export default async function AdminHomePage() {
-  const { db } = await loadAdmin();
+export default async function AdminHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; view?: string }>;
+}) {
+  const { q = "", view } = await searchParams;
+  const { db, user } = await loadAdmin();
   const [users, challenges, active, today, fees, latest] = await Promise.all([
     db`SELECT count(*)::int AS count FROM users`,
     db`SELECT count(*)::int AS count FROM challenges`,
@@ -39,7 +45,8 @@ export default async function AdminHomePage() {
           </article>
         ))}
       </section>
-      <section className="panel">
+      <UserDirectory basePath="/admin" query={q.trim().slice(0, 80)} view={view} selfId={user.id} />
+      <section className="panel" style={{ marginTop: 22 }}>
         <div className="panel__head">
           <h2>Latest challenges</h2>
         </div>

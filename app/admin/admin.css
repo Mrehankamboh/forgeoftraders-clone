@@ -84,7 +84,15 @@
   padding: 28px 32px 48px;
 }
 
+.admin:has(.ticket-desk) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
 .admin__main:has(.ticket-desk) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   padding: 0;
   background: #0c1011;
   color: #f4f1ea;
@@ -505,6 +513,7 @@ tbody tr:hover td {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-height: 0;
   padding: 0;
   border-right: 1px solid rgba(194, 150, 53, 0.22);
   overflow: hidden;
@@ -512,6 +521,7 @@ tbody tr:hover td {
 }
 
 .ticket-list__head {
+  flex: none;
   padding: 16px;
   border-bottom: 1px solid rgba(194, 150, 53, 0.22);
 }
@@ -542,7 +552,9 @@ tbody tr:hover td {
 .ticket-rows {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .ticket-list input,
@@ -724,6 +736,8 @@ tbody tr:hover td {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: #0c1011;
 }
 
@@ -736,6 +750,7 @@ tbody tr:hover td {
 
 .ticket-thread__head {
   display: flex;
+  flex: none;
   justify-content: space-between;
   gap: 12px;
   padding: 16px 18px;
@@ -761,8 +776,11 @@ tbody tr:hover td {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
   padding: 18px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .bubble {
@@ -788,6 +806,7 @@ tbody tr:hover td {
 
 .ticket-reply {
   display: grid;
+  flex: none;
   gap: 10px;
   padding: 14px 18px 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);

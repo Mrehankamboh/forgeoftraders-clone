@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Ticket = {
   id: string;
@@ -9,7 +9,9 @@ type Ticket = {
   name: string;
   email: string;
   lastMessage: string;
+  lastAuthor: string;
   createdAt: string;
+  updatedAt: string;
 };
 
 type Message = {
@@ -40,6 +42,31 @@ function stamp(value: string) {
   return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+function mark(ticket: Ticket) {
+  const date = new Date(ticket.updatedAt || ticket.createdAt);
+  const time = Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  return `${ticket.status}|${ticket.lastAuthor}|${ticket.lastMessage}|${time}`;
+}
+
+function ring(context: AudioContext | null) {
+  if (!context || context.state !== "running") return;
+  const start = context.currentTime;
+  [880, 1175].forEach((frequency, index) => {
+    const tone = context.createOscillator();
+    const gain = context.createGain();
+    const at = start + index * 0.16;
+    tone.type = "sine";
+    tone.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(0.09, at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
+    tone.connect(gain);
+    gain.connect(context.destination);
+    tone.start(at);
+    tone.stop(at + 0.24);
+  });
+}
+
 export function TicketDesk({ initial }: { initial: Ticket[] }) {
   const [tickets, setTickets] = useState(initial);
   const [filter, setFilter] = useState("all");
@@ -50,6 +77,11 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
   const [status, setStatus] = useState("open");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState("");
+  const [fresh, setFresh] = useState<string[]>([]);
+  const seen = useRef(new Map(initial.map((ticket) => [ticket.id, mark(ticket)])));
+  const sound = useRef<AudioContext | null>(null);
+  const primed = useRef(false);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -63,15 +95,73 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
   const current = tickets.find((ticket) => ticket.id === selected) || null;
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    function unlock() {
+      const Context = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Context) return;
+      if (!sound.current) sound.current = new Context();
+      sound.current.resume().catch(() => {});
+    }
+    window.addEventListener("pointerdown", unlock);
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    let stop = false;
+    function pull() {
       fetch("/api/admin/tickets")
         .then((response) => response.json())
         .then((data) => {
-          if (Array.isArray(data.tickets)) setTickets(data.tickets);
+          if (stop || !Array.isArray(data.tickets)) return;
+          const next = data.tickets as Ticket[];
+          if (!primed.current) {
+            primed.current = true;
+            seen.current = new Map(next.map((ticket) => [ticket.id, mark(ticket)]));
+            setTickets(next);
+            return;
+          }
+          const arrived: string[] = [];
+          let shouldRing = false;
+          let listChanged = next.length !== seen.current.size;
+          const ids = new Set<string>();
+          for (const ticket of next) {
+            ids.add(ticket.id);
+            const previous = seen.current.get(ticket.id);
+            const currentMark = mark(ticket);
+            if (previous !== currentMark) listChanged = true;
+            const previousMessage = previous?.split("|").slice(1).join("|");
+            const currentMessage = currentMark.split("|").slice(1).join("|");
+            if (previousMessage !== currentMessage && ticket.lastAuthor === "user") {
+              shouldRing = true;
+              arrived.push(ticket.id);
+            }
+            seen.current.set(ticket.id, currentMark);
+          }
+          for (const id of seen.current.keys()) {
+            if (!ids.has(id)) {
+              seen.current.delete(id);
+              listChanged = true;
+            }
+          }
+          if (listChanged) setTickets(next);
+          if (!shouldRing) return;
+          ring(sound.current);
+          setFresh(arrived);
+          setToast("New ticket message received");
         })
         .catch(() => {});
-    }, 8000);
-    return () => window.clearInterval(timer);
+    }
+    pull();
+    const timer = window.setInterval(pull, 5000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -104,7 +194,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
         }
         if (message) setReply("");
         setTickets((list) => list.map((ticket) => (
-          ticket.id === current.id ? { ...ticket, status: nextStatus, lastMessage: message || ticket.lastMessage } : ticket
+          ticket.id === current.id ? { ...ticket, status: nextStatus, lastMessage: message || ticket.lastMessage, lastAuthor: message ? "admin" : ticket.lastAuthor } : ticket
         )));
         setStatus(nextStatus);
         setNote(message ? "Reply sent" : "Status saved");
@@ -121,7 +211,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
           {filters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
         {visible.length === 0 ? <p className="empty">No tickets in this list.</p> : visible.map((ticket) => (
-          <button key={ticket.id} type="button" className={ticket.id === selected ? "ticket-row is-selected" : "ticket-row"} onClick={() => setSelected(ticket.id)}>
+          <button key={ticket.id} type="button" className={["ticket-row", ticket.id === selected ? "is-selected" : "", fresh.includes(ticket.id) ? "is-fresh" : ""].filter(Boolean).join(" ")} onClick={() => setSelected(ticket.id)}>
             <strong>{ticket.subject}</strong>
             <span>{ticket.name}{ticket.email ? ` \u00b7 ${ticket.email}` : ""}</span>
             <em>{ticket.status.replace("_", " ")} \u00b7 {stamp(ticket.createdAt)}</em>
@@ -160,6 +250,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
           </>
         )}
       </section>
+      {toast ? <p className="ticket-toast" role="status">{toast}</p> : null}
     </div>
   );
 }

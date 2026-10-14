@@ -251,6 +251,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
         )}
       </section>
       {toast ? <p className="ticket-toast" role="status">{toast}</p> : null}
+      <style>{".ticket-toast{position:fixed;top:16px;right:16px;z-index:80;max-width:min(320px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;background:#121618;color:#f4f1ea;border:1px solid rgba(194,150,53,.45);box-shadow:0 12px 30px rgba(0,0,0,.35);font-size:14px}.ticket-row.is-fresh{border-color:#c29635;animation:ticket-pulse 1.1s ease 2}@keyframes ticket-pulse{50%{background:rgba(194,150,53,.24)}}"}</style>
     </div>
   );
 }

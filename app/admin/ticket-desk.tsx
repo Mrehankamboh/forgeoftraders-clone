@@ -67,22 +67,30 @@ function ring(context: AudioContext | null) {
   if (!context || context.state !== "running") return;
   const audio = context;
   const start = audio.currentTime;
-  [0, 0.62, 1.7].forEach((offset) => {
-    [440, 480].forEach((frequency) => {
-      const tone = audio.createOscillator();
-      const gain = audio.createGain();
-      const at = start + offset;
-      tone.type = "sine";
-      tone.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(0.16, at + 0.02);
-      gain.gain.setValueAtTime(0.16, at + 0.34);
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.46);
-      tone.connect(gain);
-      gain.connect(audio.destination);
-      tone.start(at);
-      tone.stop(at + 0.48);
-    });
+  [523.25, 659.25, 783.99].forEach((frequency, index) => {
+    const at = start + index * 0.11;
+    const tone = audio.createOscillator();
+    const overtone = audio.createOscillator();
+    const gain = audio.createGain();
+    const air = audio.createGain();
+    tone.type = "sine";
+    overtone.type = "sine";
+    tone.frequency.value = frequency;
+    overtone.frequency.value = frequency * 2;
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(0.14, at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.38);
+    air.gain.setValueAtTime(0.0001, at);
+    air.gain.exponentialRampToValueAtTime(0.04, at + 0.015);
+    air.gain.exponentialRampToValueAtTime(0.0001, at + 0.2);
+    tone.connect(gain);
+    overtone.connect(air);
+    gain.connect(audio.destination);
+    air.connect(audio.destination);
+    tone.start(at);
+    overtone.start(at);
+    tone.stop(at + 0.4);
+    overtone.stop(at + 0.22);
   });
 }
 
@@ -98,7 +106,10 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [fresh, setFresh] = useState<string[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const seen = useRef(new Map(initial.map((ticket) => [ticket.id, mark(ticket)])));
+  const openRef = useRef("");
+  openRef.current = selected;
   const sound = useRef<AudioContext | null>(null);
   const primed = useRef(false);
 
@@ -157,7 +168,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
             const currentMessage = currentMark.split("|").slice(1).join("|");
             if (previousMessage !== currentMessage && ticket.lastAuthor === "user") {
               shouldRing = true;
-              arrived.push(ticket.id);
+              if (ticket.id !== openRef.current) arrived.push(ticket.id);
             }
             seen.current.set(ticket.id, currentMark);
           }
@@ -173,6 +184,11 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
           if (context && context.state !== "running") context.resume().then(() => ring(context)).catch(() => {});
           else ring(context);
           setFresh(arrived);
+          setCounts((current) => {
+            const next = { ...current };
+            for (const id of arrived) next[id] = (next[id] || 0) + 1;
+            return next;
+          });
           setToast("New ticket message received");
         })
         .catch(() => {});
@@ -238,15 +254,23 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
           </select>
         </div>
         <div className="ticket-rows">
-          {visible.length === 0 ? <p className="empty">No tickets in this list.</p> : visible.map((ticket) => {
-            const unread = ticket.lastAuthor === "user" || fresh.includes(ticket.id);
-            const done = ticket.status === "closed";
-            return (
-              <button key={ticket.id} type="button" className={["ticket-row", ticket.id === selected ? "is-selected" : "", fresh.includes(ticket.id) ? "is-fresh" : ""].filter(Boolean).join(" ")} onClick={() => setSelected(ticket.id)}>
-                <span className="ticket-row__title">
-                  <strong>{ticket.subject}</strong>
-                  {unread ? <i className="ticket-alert" aria-label="New message">i</i> : null}
-                </span>
+        {visible.length === 0 ? <p className="empty">No tickets in this list.</p> : visible.map((ticket) => {
+          const count = counts[ticket.id] || 0;
+          const done = ticket.status === "closed";
+          return (
+            <button key={ticket.id} type="button" className={["ticket-row", ticket.id === selected ? "is-selected" : "", fresh.includes(ticket.id) ? "is-fresh" : ""].filter(Boolean).join(" ")} onClick={() => {
+              setSelected(ticket.id);
+              setCounts((current) => {
+                if (!current[ticket.id]) return current;
+                const next = { ...current };
+                delete next[ticket.id];
+                return next;
+              });
+            }}>
+              <span className="ticket-row__title">
+                <strong>{ticket.subject}</strong>
+                {count > 0 ? <i className="ticket-count" aria-label={`${count} new`}>{count}</i> : null}
+              </span>
                 <span className="ticket-row__meta">
                   <em className="ticket-chip">Support</em>
                 </span>
@@ -296,7 +320,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
         )}
       </section>
       {toast ? <p className="ticket-toast" role="status">{toast}</p> : null}
-      <style>{".admin__main:has(.ticket-desk){padding:0;background:#04070b;color:#dde7f2}.admin__main:has(.ticket-desk) .admin__top{margin:0;min-height:57px;padding:0 16px;border-bottom:1px solid rgba(10,84,255,.3)}.ticket-desk{grid-template-columns:320px minmax(0,1fr);height:calc(100dvh - 57px);border:0;border-radius:0;background:#04070b}.ticket-list{gap:0;padding:0;overflow:hidden;background:#04070b;border-right:1px solid rgba(10,84,255,.3)}.ticket-list__head{padding:16px;border-bottom:1px solid rgba(10,84,255,.3)}.ticket-list__head h2{margin:0 0 16px;color:#fff;font-size:18px;font-weight:600}.ticket-search{position:relative;display:block;margin-bottom:12px}.ticket-search svg{position:absolute;left:14px;top:13px;width:16px;height:16px;color:rgba(221,231,242,.7);pointer-events:none}.ticket-rows{flex:1;min-height:0;overflow:auto}.ticket-list input,.ticket-list select{height:42px;padding:10px 16px;border-radius:8px;border-color:rgba(10,84,255,.3);background:rgba(10,84,255,.2);color:#fff;font-size:14px}.ticket-search input{padding-left:40px}.ticket-list select{height:40px}.ticket-row{display:grid;gap:8px;padding:12px;border-radius:0;border:1px solid rgba(18,223,186,.3);background:rgba(18,223,186,.1);color:#dde7f2}.ticket-row.is-selected{border-color:rgba(18,223,186,.7);background:rgba(18,223,186,.2)}.ticket-row__title,.ticket-row__meta,.ticket-row__line,.ticket-row__foot{display:flex;align-items:center;gap:6px;min-width:0}.ticket-row__title strong{flex:1;color:#dde7f2;font-size:14px;font-weight:600}.ticket-row .ticket-chip{padding:2px 8px;border:1px solid rgba(10,84,255,.4);border-radius:6px;background:rgba(10,84,255,.15);color:#12dfba;font-size:11px}.ticket-row .ticket-id,.ticket-row .ticket-status.is-closed,.ticket-row .ticket-row__foot>em:first-child{color:rgba(221,231,242,.7);font-size:12px}.ticket-row .ticket-status{margin-left:auto;color:#12dfba;font-size:12px}.ticket-row .ticket-person{margin-left:auto;color:#63b9ff;font-size:12px}.ticket-thread{background:#04070b}.ticket-thread>.empty{margin:auto;padding:0;color:rgba(221,231,242,.7);font-size:16px}.ticket-toast{position:fixed;top:16px;right:16px;z-index:80;max-width:min(320px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;background:#121618;color:#f4f1ea;border:1px solid rgba(194,150,53,.45);box-shadow:0 12px 30px rgba(0,0,0,.35);font-size:14px}@media(max-width:767px){.ticket-desk{grid-template-columns:1fr;height:calc(100dvh - 57px)}}"}</style>
+      <style>{".admin__main:has(.ticket-desk){padding:0;background:#04070b;color:#dde7f2}.admin__main:has(.ticket-desk) .admin__top{margin:0;min-height:57px;padding:0 16px;border-bottom:1px solid rgba(10,84,255,.3)}.ticket-desk{grid-template-columns:320px minmax(0,1fr);height:calc(100dvh - 57px);border:0;border-radius:0;background:#04070b}.ticket-list{gap:0;padding:0;overflow:hidden;background:#04070b;border-right:1px solid rgba(10,84,255,.3)}.ticket-list__head{padding:16px;border-bottom:1px solid rgba(10,84,255,.3)}.ticket-list__head h2{margin:0 0 16px;color:#fff;font-size:18px;font-weight:600}.ticket-search{position:relative;display:block;margin-bottom:12px}.ticket-search svg{position:absolute;left:14px;top:13px;width:16px;height:16px;color:rgba(221,231,242,.7);pointer-events:none}.ticket-rows{flex:1;min-height:0;overflow:auto}.ticket-list input,.ticket-list select{height:42px;padding:10px 16px;border-radius:8px;border-color:rgba(10,84,255,.3);background:rgba(10,84,255,.2);color:#fff;font-size:14px}.ticket-search input{padding-left:40px}.ticket-list select{height:40px}.ticket-row{display:grid;gap:8px;padding:12px;border-radius:0;border:1px solid rgba(18,223,186,.3);background:rgba(18,223,186,.1);color:#dde7f2}.ticket-row.is-selected{border-color:rgba(18,223,186,.7);background:rgba(18,223,186,.2)}.ticket-row__title,.ticket-row__meta,.ticket-row__line,.ticket-row__foot{display:flex;align-items:center;gap:6px;min-width:0}.ticket-row__title strong{flex:1;color:#dde7f2;font-size:14px;font-weight:600}.ticket-count{flex:none;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#3b82f6;color:#fff;font-style:normal;font-size:11px;font-weight:700;line-height:18px;text-align:center}.ticket-row .ticket-chip{padding:2px 8px;border:1px solid rgba(10,84,255,.4);border-radius:6px;background:rgba(10,84,255,.15);color:#12dfba;font-size:11px}.ticket-row .ticket-id,.ticket-row .ticket-status.is-closed,.ticket-row .ticket-row__foot>em:first-child{color:rgba(221,231,242,.7);font-size:12px}.ticket-row .ticket-status{margin-left:auto;color:#12dfba;font-size:12px}.ticket-row .ticket-person{margin-left:auto;color:#63b9ff;font-size:12px}.ticket-thread{background:#04070b}.ticket-thread>.empty{margin:auto;padding:0;color:rgba(221,231,242,.7);font-size:16px}.ticket-toast{position:fixed;top:16px;right:16px;z-index:80;max-width:min(320px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;background:#121618;color:#f4f1ea;border:1px solid rgba(194,150,53,.45);box-shadow:0 12px 30px rgba(0,0,0,.35);font-size:14px}@media(max-width:767px){.ticket-desk{grid-template-columns:1fr;height:calc(100dvh - 57px)}}"}</style>
     </div>
   );
 }

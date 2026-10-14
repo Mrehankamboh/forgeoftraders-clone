@@ -29,11 +29,5 @@ export default async function TicketsPage() {
     updatedAt: new Date(String(row.updated_at || row.created_at)).toISOString(),
   }));
 
-  return (
-    <>
-      <h1>Tickets</h1>
-      <p className="lead">Replies sent here show up in the visitor support chat.</p>
-      <TicketDesk initial={tickets} />
-    </>
-  );
+  return <TicketDesk initial={tickets} />;
 }

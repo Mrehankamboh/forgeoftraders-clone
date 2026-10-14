@@ -16,14 +16,24 @@ export async function GET(request: Request) {
   }
   const db = sql();
   await ensureAppSchema(db);
-  const rows = await db`
-    SELECT t.id, t.subject, t.status, t.created_at, t.updated_at,
-      m.id AS message_id, m.author, m.body, m.created_at AS message_at
-    FROM tickets t
-    LEFT JOIN ticket_messages m ON m.ticket_id = t.id
-    WHERE t.visitor_key = ${key}
-    ORDER BY t.updated_at DESC, m.created_at ASC
-  `;
+  const user = await userFromSession(db, request);
+  const rows = user
+    ? await db`
+      SELECT t.id, t.subject, t.status, t.created_at, t.updated_at,
+        m.id AS message_id, m.author, m.body, m.created_at AS message_at
+      FROM tickets t
+      LEFT JOIN ticket_messages m ON m.ticket_id = t.id
+      WHERE t.user_id = ${user.id}
+      ORDER BY t.updated_at DESC, m.created_at ASC
+    `
+    : await db`
+      SELECT t.id, t.subject, t.status, t.created_at, t.updated_at,
+        m.id AS message_id, m.author, m.body, m.created_at AS message_at
+      FROM tickets t
+      LEFT JOIN ticket_messages m ON m.ticket_id = t.id
+      WHERE t.visitor_key = ${key} AND t.user_id IS NULL
+      ORDER BY t.updated_at DESC, m.created_at ASC
+    `;
   const tickets = [];
   const seen = new Map();
   for (const row of rows) {
@@ -75,11 +85,17 @@ export async function POST(request: Request) {
   }
 
   if (/^[0-9a-f-]{36}$/i.test(ticketId)) {
-    const existing = await db`
-      SELECT id, status FROM tickets
-      WHERE id = ${ticketId} AND visitor_key = ${key}
-      LIMIT 1
-    `;
+    const existing = user
+      ? await db`
+        SELECT id, status FROM tickets
+        WHERE id = ${ticketId} AND user_id = ${user.id}
+        LIMIT 1
+      `
+      : await db`
+        SELECT id, status FROM tickets
+        WHERE id = ${ticketId} AND visitor_key = ${key} AND user_id IS NULL
+        LIMIT 1
+      `;
     if (!existing[0]) return NextResponse.json({ error: "Ticket was not found." }, { status: 404 });
     if (String(existing[0].status) === "closed") {
       return NextResponse.json({ error: "This ticket is closed." }, { status: 400 });

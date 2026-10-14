@@ -32,17 +32,26 @@
   var form = panel.querySelector("form");
   var ticketId = localStorage.getItem("fot_ticket_id") || "";
   var ticketOpen = false;
+  var signedIn = "";
+  var sawAccount = false;
+
+  function idKey() {
+    return signedIn ? "fot_ticket_id_" + signedIn : "fot_ticket_id";
+  }
 
   function paint(tickets) {
     var ticket = tickets.find(function (item) { return item.id === ticketId; }) || tickets[0];
     if (!ticket) {
       log.innerHTML = "";
+      ticketId = "";
       ticketOpen = false;
+      localStorage.removeItem(idKey());
+      form.querySelector("[name=subject]").disabled = false;
       return;
     }
     ticketId = ticket.id;
     ticketOpen = ticket.status !== "closed";
-    localStorage.setItem("fot_ticket_id", ticketId);
+    localStorage.setItem(idKey(), ticketId);
     log.innerHTML = "";
     ticket.messages.forEach(function (message) {
       var item = document.createElement("div");
@@ -61,7 +70,21 @@
   }
 
   function load() {
-    fetch("/api/tickets?key=" + encodeURIComponent(key))
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then(function (response) { return response.json(); })
+      .then(function (who) {
+        var account = who && who.id ? String(who.id) : "";
+        if (sawAccount && account !== signedIn) {
+          ticketId = "";
+          ticketOpen = false;
+          log.innerHTML = "";
+          form.querySelector("[name=subject]").disabled = false;
+        }
+        sawAccount = true;
+        signedIn = account;
+        ticketId = localStorage.getItem(idKey()) || "";
+        return fetch("/api/tickets?key=" + encodeURIComponent(key), { credentials: "same-origin" });
+      })
       .then(function (response) { return response.json(); })
       .then(function (data) { paint(data.tickets || []); })
       .catch(function () {});
@@ -96,6 +119,7 @@
     if (!message) return;
     fetch("/api/tickets", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         key: key,
@@ -107,7 +131,7 @@
     }).then(function (response) { return response.json(); }).then(function (data) {
       if (data.id) {
         ticketId = data.id;
-        localStorage.setItem("fot_ticket_id", ticketId);
+        localStorage.setItem(idKey(), ticketId);
       }
       form.message.value = "";
       load();

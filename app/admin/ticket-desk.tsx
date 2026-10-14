@@ -286,7 +286,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
               {messages.map((message) => (
                 <article key={message.id} className={message.author === "admin" ? "bubble bubble--admin" : "bubble"}>
                   <p>{message.body}</p>
-                  <time>{message.author === "admin" ? "Support" : "Trader"} \u00b7 {stamp(message.createdAt)}</time>
+                  <time>{(message.author === "admin" ? "Support" : "Trader") + " " + String.fromCharCode(183) + " " + stamp(message.createdAt)}</time>
                 </article>
               ))}
             </div>

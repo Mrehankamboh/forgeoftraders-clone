@@ -28,7 +28,7 @@
     var active = document.querySelector(".program-desktop .program-item.active")
       || document.querySelector(".program-desktop .program-item");
     if (active && window.jQuery) window.jQuery(active).trigger("click");
-    document.querySelectorAll(".announcement, .promo-note, .regular-price, .discount-context, .sticky-offer-label").forEach(function (el) {
+    document.querySelectorAll(".promo-note, .regular-price, .discount-context, .sticky-offer-label").forEach(function (el) {
       el.hidden = true;
     });
   }

@@ -44,10 +44,10 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
   const [tickets, setTickets] = useState(initial);
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(initial[0]?.id || "");
+  const [selected, setSelected] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [reply, setReply] = useState("");
-  const [status, setStatus] = useState(initial[0]?.status || "open");
+  const [status, setStatus] = useState("open");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -114,16 +114,12 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
   }
 
   return (
-    <div className="ticket-desk">
+    <div className={selected ? "ticket-desk is-open" : "ticket-desk"}>
       <aside className="ticket-list">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tickets" />
-        <div className="filters">
-          {filters.map((item) => (
-            <button key={item.id} type="button" aria-current={filter === item.id ? "page" : undefined} onClick={() => setFilter(item.id)}>
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tickets" aria-label="Search tickets" />
+        <select value={filter} aria-label="Filter tickets" onChange={(event) => setFilter(event.target.value)}>
+          {filters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
         {visible.length === 0 ? <p className="empty">No tickets in this list.</p> : visible.map((ticket) => (
           <button key={ticket.id} type="button" className={ticket.id === selected ? "ticket-row is-selected" : "ticket-row"} onClick={() => setSelected(ticket.id)}>
             <strong>{ticket.subject}</strong>
@@ -136,6 +132,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
         {!current ? <p className="empty">Select a ticket to view messages.</p> : (
           <>
             <header className="ticket-thread__head">
+              <button type="button" className="ticket-back" onClick={() => setSelected("")}>Back</button>
               <div>
                 <h2>{current.subject}</h2>
                 <p>{current.name}{current.email ? ` \u00b7 ${current.email}` : ""}</p>

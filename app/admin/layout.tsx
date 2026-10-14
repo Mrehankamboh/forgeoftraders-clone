@@ -16,6 +16,7 @@ export default async function AdminLayout({
 
   return (
     <div className="admin">
+      <input id="admin-menu" className="admin-menu" type="checkbox" />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -31,11 +32,17 @@ export default async function AdminLayout({
       </aside>
       <div className="admin__main">
         <header className="admin__top">
+          <label htmlFor="admin-menu" className="admin-menu-btn" aria-label="Open menu">
+            <span />
+            <span />
+            <span />
+          </label>
           <p className="admin__who">{name}</p>
           <SignOutButton />
         </header>
         {children}
       </div>
+      <label htmlFor="admin-menu" className="admin-menu-backdrop" aria-label="Close menu" />
     </div>
   );
 }

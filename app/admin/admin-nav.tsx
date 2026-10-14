@@ -25,7 +25,15 @@ export function AdminNav() {
       {links.map((link) => {
         const current = link.href === "/admin" ? path === "/admin" : path.startsWith(link.href);
         return (
-          <Link key={link.href} href={link.href} aria-current={current ? "page" : undefined}>
+          <Link
+            key={link.href}
+            href={link.href}
+            aria-current={current ? "page" : undefined}
+            onClick={() => {
+              const menu = document.getElementById("admin-menu");
+              if (menu instanceof HTMLInputElement) menu.checked = false;
+            }}
+          >
             {link.label}
           </Link>
         );

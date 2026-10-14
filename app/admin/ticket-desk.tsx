@@ -50,8 +50,11 @@ function when(value: string) {
   return `${day} at ${time}`;
 }
 
-function closed(status: string) {
-  return status === "closed" || status === "resolved";
+function statusLabel(status: string) {
+  if (status === "in_progress") return "In progress";
+  if (status === "resolved") return "Resolved";
+  if (status === "closed") return "Closed";
+  return "Open";
 }
 
 function mark(ticket: Ticket) {
@@ -224,31 +227,41 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
   return (
     <div className={selected ? "ticket-desk is-open" : "ticket-desk"}>
       <aside className="ticket-list">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tickets" aria-label="Search tickets" />
-        <select value={filter} aria-label="Filter tickets" onChange={(event) => setFilter(event.target.value)}>
-          {filters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-        </select>
-        {visible.length === 0 ? <p className="empty">No tickets in this list.</p> : visible.map((ticket) => {
-          const unread = ticket.lastAuthor === "user" || fresh.includes(ticket.id);
-          const done = closed(ticket.status);
-          return (
-            <button key={ticket.id} type="button" className={["ticket-row", ticket.id === selected ? "is-selected" : "", fresh.includes(ticket.id) ? "is-fresh" : ""].filter(Boolean).join(" ")} onClick={() => setSelected(ticket.id)}>
-              <span className="ticket-row__title">
-                <strong>{ticket.subject}</strong>
-                {unread ? <i className="ticket-alert" aria-label="New message">i</i> : null}
-              </span>
-              <span className="ticket-row__meta">
-                <em className="ticket-chip">Support</em>
-                <em className="ticket-id">{ticket.id.slice(0, 18)}</em>
-                <em className={done ? "ticket-status is-closed" : "ticket-status"}>{done ? "Closed" : "Open"}</em>
-              </span>
-              <span className="ticket-row__foot">
-                <em>{when(ticket.updatedAt || ticket.createdAt)}</em>
-                <em className="ticket-person">{ticket.name}</em>
-              </span>
-            </button>
-          );
-        })}
+        <div className="ticket-list__head">
+          <h2>Tickets</h2>
+          <label className="ticket-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M20 20l-3.5-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tickets" aria-label="Search tickets" />
+          </label>
+          <select value={filter} aria-label="All Chats" onChange={(event) => setFilter(event.target.value)}>
+            {filters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+        </div>
+        <div className="ticket-rows">
+          {visible.length === 0 ? <p className="empty">No tickets in this list.</p> : visible.map((ticket) => {
+            const unread = ticket.lastAuthor === "user" || fresh.includes(ticket.id);
+            const done = ticket.status === "closed";
+            return (
+              <button key={ticket.id} type="button" className={["ticket-row", ticket.id === selected ? "is-selected" : "", fresh.includes(ticket.id) ? "is-fresh" : ""].filter(Boolean).join(" ")} onClick={() => setSelected(ticket.id)}>
+                <span className="ticket-row__title">
+                  <strong>{ticket.subject}</strong>
+                  {unread ? <i className="ticket-alert" aria-label="New message">i</i> : null}
+                </span>
+                <span className="ticket-row__meta">
+                  <em className="ticket-chip">Support</em>
+                </span>
+                <span className="ticket-row__line">
+                  <em className="ticket-id">{ticket.id.slice(0, 18)}</em>
+                  <em className={done ? "ticket-status is-closed" : "ticket-status"}>{done ? "\u00d7 " : ""}{statusLabel(ticket.status)}</em>
+                </span>
+                <span className="ticket-row__foot">
+                  <em>{when(ticket.updatedAt || ticket.createdAt)}</em>
+                  <em className="ticket-person">{ticket.name}</em>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </aside>
       <section className="ticket-thread">
         {!current ? <p className="empty">Select a ticket to view messages.</p> : (
@@ -283,7 +296,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
         )}
       </section>
       {toast ? <p className="ticket-toast" role="status">{toast}</p> : null}
-      <style>{".ticket-desk{grid-template-columns:360px minmax(0,1fr)}.ticket-row{display:grid;gap:6px;padding:12px;border-radius:12px;background:#0c1011}.ticket-row__title,.ticket-row__meta,.ticket-row__foot{display:flex;align-items:center;gap:8px;min-width:0}.ticket-row__title strong{flex:1;color:#f4f1ea;font-size:13px;line-height:1.35}.ticket-alert{flex:none;width:16px;height:16px;border-radius:50%;background:#3b82f6;color:#fff;font-style:normal;font-size:11px;font-weight:700;line-height:16px;text-align:center}.ticket-row .ticket-chip{flex:none;padding:1px 6px;border:1px solid rgba(45,212,191,.55);border-radius:6px;color:#2dd4bf;font-size:11px}.ticket-row .ticket-id{overflow:hidden;color:#8b969b;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.ticket-row .ticket-status,.ticket-row .ticket-person{margin-left:auto;flex:none;color:#2dd4bf;font-size:11px}.ticket-row .ticket-status.is-closed::before{content:\"\u00d7 \"}.ticket-row .ticket-status.is-closed,.ticket-row .ticket-row__foot>em:first-child{color:#8b969b;font-size:11px}.ticket-toast{position:fixed;top:16px;right:16px;z-index:80;max-width:min(320px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;background:#121618;color:#f4f1ea;border:1px solid rgba(194,150,53,.45);box-shadow:0 12px 30px rgba(0,0,0,.35);font-size:14px}.ticket-row.is-fresh{border-color:#c29635;animation:ticket-pulse 1.1s ease 2}@keyframes ticket-pulse{50%{background:rgba(194,150,53,.24)}}"}</style>
+      <style>{".admin__main:has(.ticket-desk){padding:0;background:#04070b;color:#dde7f2}.admin__main:has(.ticket-desk) .admin__top{margin:0;min-height:57px;padding:0 16px;border-bottom:1px solid rgba(10,84,255,.3)}.ticket-desk{grid-template-columns:320px minmax(0,1fr);height:calc(100dvh - 57px);border:0;border-radius:0;background:#04070b}.ticket-list{gap:0;padding:0;overflow:hidden;background:#04070b;border-right:1px solid rgba(10,84,255,.3)}.ticket-list__head{padding:16px;border-bottom:1px solid rgba(10,84,255,.3)}.ticket-list__head h2{margin:0 0 16px;color:#fff;font-size:18px;font-weight:600}.ticket-search{position:relative;display:block;margin-bottom:12px}.ticket-search svg{position:absolute;left:14px;top:13px;width:16px;height:16px;color:rgba(221,231,242,.7);pointer-events:none}.ticket-rows{flex:1;min-height:0;overflow:auto}.ticket-list input,.ticket-list select{height:42px;padding:10px 16px;border-radius:8px;border-color:rgba(10,84,255,.3);background:rgba(10,84,255,.2);color:#fff;font-size:14px}.ticket-search input{padding-left:40px}.ticket-list select{height:40px}.ticket-row{display:grid;gap:8px;padding:12px;border-radius:0;border:1px solid rgba(18,223,186,.3);background:rgba(18,223,186,.1);color:#dde7f2}.ticket-row.is-selected{border-color:rgba(18,223,186,.7);background:rgba(18,223,186,.2)}.ticket-row__title,.ticket-row__meta,.ticket-row__line,.ticket-row__foot{display:flex;align-items:center;gap:6px;min-width:0}.ticket-row__title strong{flex:1;color:#dde7f2;font-size:14px;font-weight:600}.ticket-row .ticket-chip{padding:2px 8px;border:1px solid rgba(10,84,255,.4);border-radius:6px;background:rgba(10,84,255,.15);color:#12dfba;font-size:11px}.ticket-row .ticket-id,.ticket-row .ticket-status.is-closed,.ticket-row .ticket-row__foot>em:first-child{color:rgba(221,231,242,.7);font-size:12px}.ticket-row .ticket-status{margin-left:auto;color:#12dfba;font-size:12px}.ticket-row .ticket-person{margin-left:auto;color:#63b9ff;font-size:12px}.ticket-thread{background:#04070b}.ticket-thread>.empty{margin:auto;padding:0;color:rgba(221,231,242,.7);font-size:16px}.ticket-toast{position:fixed;top:16px;right:16px;z-index:80;max-width:min(320px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;background:#121618;color:#f4f1ea;border:1px solid rgba(194,150,53,.45);box-shadow:0 12px 30px rgba(0,0,0,.35);font-size:14px}@media(max-width:767px){.ticket-desk{grid-template-columns:1fr;height:calc(100dvh - 57px)}}"}</style>
     </div>
   );
 }

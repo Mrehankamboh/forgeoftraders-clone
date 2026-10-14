@@ -22,7 +22,7 @@ type Message = {
 };
 
 const filters = [
-  { id: "all", label: "All chats" },
+  { id: "all", label: "All Chats" },
   { id: "open", label: "Open" },
   { id: "in_progress", label: "In progress" },
   { id: "resolved", label: "Resolved" },
@@ -42,6 +42,18 @@ function stamp(value: string) {
   return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+function when(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const day = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const time = date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${day} at ${time}`;
+}
+
+function closed(status: string) {
+  return status === "closed" || status === "resolved";
+}
+
 function mark(ticket: Ticket) {
   const date = new Date(ticket.updatedAt || ticket.createdAt);
   const time = Number.isNaN(date.getTime()) ? "" : date.toISOString();
@@ -50,20 +62,24 @@ function mark(ticket: Ticket) {
 
 function ring(context: AudioContext | null) {
   if (!context || context.state !== "running") return;
-  const start = context.currentTime;
-  [880, 1175].forEach((frequency, index) => {
-    const tone = context.createOscillator();
-    const gain = context.createGain();
-    const at = start + index * 0.16;
-    tone.type = "sine";
-    tone.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(0.09, at + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
-    tone.connect(gain);
-    gain.connect(context.destination);
-    tone.start(at);
-    tone.stop(at + 0.24);
+  const audio = context;
+  const start = audio.currentTime;
+  [0, 0.62, 1.7].forEach((offset) => {
+    [440, 480].forEach((frequency) => {
+      const tone = audio.createOscillator();
+      const gain = audio.createGain();
+      const at = start + offset;
+      tone.type = "sine";
+      tone.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.16, at + 0.02);
+      gain.gain.setValueAtTime(0.16, at + 0.34);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.46);
+      tone.connect(gain);
+      gain.connect(audio.destination);
+      tone.start(at);
+      tone.stop(at + 0.48);
+    });
   });
 }
 
@@ -150,7 +166,9 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
           }
           if (listChanged) setTickets(next);
           if (!shouldRing) return;
-          ring(sound.current);
+          const context = sound.current;
+          if (context && context.state !== "running") context.resume().then(() => ring(context)).catch(() => {});
+          else ring(context);
           setFresh(arrived);
           setToast("New ticket message received");
         })
@@ -210,13 +228,27 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
         <select value={filter} aria-label="Filter tickets" onChange={(event) => setFilter(event.target.value)}>
           {filters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
-        {visible.length === 0 ? <p className="empty">No tickets in this list.</p> : visible.map((ticket) => (
-          <button key={ticket.id} type="button" className={["ticket-row", ticket.id === selected ? "is-selected" : "", fresh.includes(ticket.id) ? "is-fresh" : ""].filter(Boolean).join(" ")} onClick={() => setSelected(ticket.id)}>
-            <strong>{ticket.subject}</strong>
-            <span>{ticket.name}{ticket.email ? ` \u00b7 ${ticket.email}` : ""}</span>
-            <em>{ticket.status.replace("_", " ")} \u00b7 {stamp(ticket.createdAt)}</em>
-          </button>
-        ))}
+        {visible.length === 0 ? <p className="empty">No tickets in this list.</p> : visible.map((ticket) => {
+          const unread = ticket.lastAuthor === "user" || fresh.includes(ticket.id);
+          const done = closed(ticket.status);
+          return (
+            <button key={ticket.id} type="button" className={["ticket-row", ticket.id === selected ? "is-selected" : "", fresh.includes(ticket.id) ? "is-fresh" : ""].filter(Boolean).join(" ")} onClick={() => setSelected(ticket.id)}>
+              <span className="ticket-row__title">
+                <strong>{ticket.subject}</strong>
+                {unread ? <i className="ticket-alert" aria-label="New message">i</i> : null}
+              </span>
+              <span className="ticket-row__meta">
+                <em className="ticket-chip">Support</em>
+                <em className="ticket-id">{ticket.id.slice(0, 18)}</em>
+                <em className={done ? "ticket-status is-closed" : "ticket-status"}>{done ? "Closed" : "Open"}</em>
+              </span>
+              <span className="ticket-row__foot">
+                <em>{when(ticket.updatedAt || ticket.createdAt)}</em>
+                <em className="ticket-person">{ticket.name}</em>
+              </span>
+            </button>
+          );
+        })}
       </aside>
       <section className="ticket-thread">
         {!current ? <p className="empty">Select a ticket to view messages.</p> : (
@@ -251,7 +283,7 @@ export function TicketDesk({ initial }: { initial: Ticket[] }) {
         )}
       </section>
       {toast ? <p className="ticket-toast" role="status">{toast}</p> : null}
-      <style>{".ticket-toast{position:fixed;top:16px;right:16px;z-index:80;max-width:min(320px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;background:#121618;color:#f4f1ea;border:1px solid rgba(194,150,53,.45);box-shadow:0 12px 30px rgba(0,0,0,.35);font-size:14px}.ticket-row.is-fresh{border-color:#c29635;animation:ticket-pulse 1.1s ease 2}@keyframes ticket-pulse{50%{background:rgba(194,150,53,.24)}}"}</style>
+      <style>{".ticket-desk{grid-template-columns:360px minmax(0,1fr)}.ticket-row{display:grid;gap:6px;padding:12px;border-radius:12px;background:#0c1011}.ticket-row__title,.ticket-row__meta,.ticket-row__foot{display:flex;align-items:center;gap:8px;min-width:0}.ticket-row__title strong{flex:1;color:#f4f1ea;font-size:13px;line-height:1.35}.ticket-alert{flex:none;width:16px;height:16px;border-radius:50%;background:#3b82f6;color:#fff;font-style:normal;font-size:11px;font-weight:700;line-height:16px;text-align:center}.ticket-row .ticket-chip{flex:none;padding:1px 6px;border:1px solid rgba(45,212,191,.55);border-radius:6px;color:#2dd4bf;font-size:11px}.ticket-row .ticket-id{overflow:hidden;color:#8b969b;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.ticket-row .ticket-status,.ticket-row .ticket-person{margin-left:auto;flex:none;color:#2dd4bf;font-size:11px}.ticket-row .ticket-status.is-closed::before{content:\"\u00d7 \"}.ticket-row .ticket-status.is-closed,.ticket-row .ticket-row__foot>em:first-child{color:#8b969b;font-size:11px}.ticket-toast{position:fixed;top:16px;right:16px;z-index:80;max-width:min(320px,calc(100vw - 32px));padding:12px 14px;border-radius:12px;background:#121618;color:#f4f1ea;border:1px solid rgba(194,150,53,.45);box-shadow:0 12px 30px rgba(0,0,0,.35);font-size:14px}.ticket-row.is-fresh{border-color:#c29635;animation:ticket-pulse 1.1s ease 2}@keyframes ticket-pulse{50%{background:rgba(194,150,53,.24)}}"}</style>
     </div>
   );
 }

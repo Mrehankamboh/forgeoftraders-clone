@@ -32,7 +32,8 @@ export async function GET(request: Request) {
   const tickets = await db`
     SELECT t.id, t.subject, t.status, t.visitor_name, t.visitor_email, t.created_at, t.updated_at,
       coalesce(u.first_name || ' ' || u.last_name, '') AS account_name,
-      (SELECT body FROM ticket_messages m WHERE m.ticket_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_message
+      (SELECT body FROM ticket_messages m WHERE m.ticket_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+      (SELECT author FROM ticket_messages m WHERE m.ticket_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_author
     FROM tickets t
     LEFT JOIN users u ON u.id = t.user_id
     ORDER BY t.updated_at DESC
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
       name: String(row.account_name || row.visitor_name || "Visitor").trim(),
       email: String(row.visitor_email || ""),
       lastMessage: String(row.last_message || ""),
+      lastAuthor: String(row.last_author || ""),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     })),

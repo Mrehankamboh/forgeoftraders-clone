@@ -69,6 +69,21 @@ export async function POST(request: Request) {
   const ticket = await db`SELECT id FROM tickets WHERE id = ${id} LIMIT 1`;
   if (!ticket[0]) return NextResponse.json({ error: "Ticket was not found." }, { status: 404 });
 
+  const action = String(body?.action || "");
+  const messageId = String(body?.messageId || "");
+  if (action === "delete") {
+    if (!/^[0-9a-f-]{36}$/i.test(messageId)) {
+      return NextResponse.json({ error: "Choose a message." }, { status: 400 });
+    }
+    const removed = await db`
+      DELETE FROM ticket_messages
+      WHERE id = ${messageId} AND ticket_id = ${id} AND author = 'admin'
+      RETURNING id
+    `;
+    if (!removed[0]) return NextResponse.json({ error: "That reply could not be removed." }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  }
+
   if (message) {
     await db`
       INSERT INTO ticket_messages (ticket_id, author, body)
